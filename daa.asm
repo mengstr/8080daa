@@ -7,9 +7,6 @@
 ; combinations of incoming CY and AC flags.
 ;--------------------------------------------------------------------
 Start:
-    mvi a,1ah
-    daa
-
     ; Initialize the count variable to 0.
     MVI A, 00H          ; Set A = 0
     STA count           ; Store A into memory location "count"
@@ -20,12 +17,12 @@ Loop:
     MVI C, 00H          ; Load immediate 0 into C (flags: CY=0, AC=0)
     CALL Process        ; Process DAA test with current flags
 
-    ; Test 2: CY=0, AC=1
-    MVI C, 01H          ; Load immediate 01H (flags: CY=0, AC=1)
+    ; Test 2: CY=1, AC=0
+    MVI C, 01H          ; Load immediate 01H (flags: CY=1, AC=0)
     CALL Process
 
-    ; Test 3: CY=1, AC=0
-    MVI C, 10H          ; Load immediate 10H (flags: CY=1, AC=0)
+    ; Test 3: CY=0, AC=1
+    MVI C, 10H          ; Load immediate 10H (flags: CY=0, AC=1)
     CALL Process
 
     ; Test 4: CY=1, AC=1
@@ -74,7 +71,7 @@ Process:
     CALL PrintHex     ; Print A as a two-digit hex value
     CALL PrintArw     ; Print an arrow " --> " to separate pre and post values
 
-    POP B             ; Restore register B (cleanup from flag transfer)
+    POP PSW           ; Pop into PSW again: This sets A and the flags (CY and AC)
     LDA count         ; Load "count" again (original value)
 
     DAA               ; Execute the DAA instruction
