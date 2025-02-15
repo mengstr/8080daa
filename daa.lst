@@ -1,0 +1,213 @@
+0100                            ORG 0100H           ; CP/M .COM programs start at address 0100H
+
+                        ;--------------------------------------------------------------------
+                        ; Start: Main program entry point.
+                        ; Initializes a counter variable ("count") and then loops through
+                        ; all 256 possible values. For each value, it tests DAA with four
+                        ; combinations of incoming CY and AC flags.
+                        ;--------------------------------------------------------------------
+0100                    Start:
+0100  3E 1A                 mvi a,1ah
+0102  27                    daa
+
+                            ; Initialize the count variable to 0.
+0103  3E 00                 MVI A, 00H          ; Set A = 0
+0105  32 D601               STA count           ; Store A into memory location "count"
+
+0108                    Loop:
+                            ; For each value in "count", perform four tests:
+                            ; Test 1: CY=0, AC=0
+0108  0E 00                 MVI C, 00H          ; Load immediate 0 into C (flags: CY=0, AC=0)
+010A  CD 2901               CALL Process        ; Process DAA test with current flags
+
+                            ; Test 2: CY=0, AC=1
+010D  0E 01                 MVI C, 01H          ; Load immediate 01H (flags: CY=0, AC=1)
+010F  CD 2901               CALL Process
+
+                            ; Test 3: CY=1, AC=0
+0112  0E 10                 MVI C, 10H          ; Load immediate 10H (flags: CY=1, AC=0)
+0114  CD 2901               CALL Process
+
+                            ; Test 4: CY=1, AC=1
+0117  0E 11                 MVI C, 11H          ; Load immediate 11H (flags: CY=1, AC=1)
+0119  CD 2901               CALL Process
+
+                            ; Increment the counter ("count")
+011C  3A D601               LDA count           ; Load the current count into A
+011F  3C                    INR A               ; Increment A by 1
+0120  32 D601               STA count           ; Store the new value back into "count"
+
+                            ; Check if the counter has wrapped around to 0 (i.e., reached 256)
+0123  FE 00                 CPI 00H             ; Compare A with 0 (if it wrapped around, A will be 0)
+0125  C2 0801               JNZ Loop            ; If A is not zero, repeat the loop
+
+0128  C9                    RET                 ; End of program
+
+                        ;--------------------------------------------------------------------
+                        ; Process: Runs the DAA test for a single test case.
+                        ;
+                        ; It assumes:
+                        ;   - The test value is in memory "count".
+                        ;   - The flag combination (CY and AC) is preset in register C.
+                        ;
+                        ; It does the following:
+                        ;   1. Loads the flags from C into the PSW (via push/pop) so that
+                        ;      the DAA instruction uses these as its incoming flags.
+                        ;   2. Prints the current flag combination.
+                        ;   3. Prints the current count value (in hex) before DAA.
+                        ;   4. Calls DAA.
+                        ;   5. Prints the adjusted count (in hex) after DAA.
+                        ;   6. Prints the flags after DAA.
+                        ;   7. Prints a newline.
+                        ;--------------------------------------------------------------------
+0129                    Process:
+                            ; Transfer the desired flags (in C) into the PSW.
+                            ; Here we push B twice then pop PSW.
+0129  C5                    PUSH B            ; Save register B (placeholder)
+012A  C5                    PUSH B            ; Push again to create a double word on the stack
+012B  F1                    POP PSW           ; Pop into PSW: This sets A and the flags (CY and AC)
+
+012C  CD 9501               CALL PrintFlg     ; Print the current flag combination (pre-DAA)
+
+                            ; Print the current count value (the original value) in hex.
+012F  3A D601               LDA count         ; Load "count" into A
+0132  CD 6801               CALL PrintHex     ; Print A as a two-digit hex value
+0135  CD 4E01               CALL PrintArw     ; Print an arrow " --> " to separate pre and post values
+
+0138  C1                    POP B             ; Restore register B (cleanup from flag transfer)
+0139  3A D601               LDA count         ; Load "count" again (original value)
+
+013C  27                    DAA               ; Execute the DAA instruction
+
+                            ; Print the adjusted value after DAA.
+013D  F5                    PUSH PSW          ; Save the new A and flags (post-DAA)
+013E  CD 6801               CALL PrintHex     ; Print the adjusted A in hex
+0141  3E 20                 MVI A, ' '        ; Print a space
+0143  CD 8301               CALL PrintChr
+0146  F1                    POP PSW           ; Restore previous flags from PSW
+0147  CD 9501               CALL PrintFlg     ; Print the updated flag combination
+
+014A  CD 8A01               CALL PrintNL     ; Print a newline
+014D  C9                    RET
+
+                        ;--------------------------------------------------------------------
+                        ; PrintArw: Prints a decorative arrow to separate values.
+                        ;--------------------------------------------------------------------
+014E                    PrintArw:
+014E  3E 20                 MVI A, ' '       ; Print a leading space
+0150  CD 8301               CALL PrintChr
+0153  3E 2D                 MVI A, '-'       ; Print a hyphen
+0155  CD 8301               CALL PrintChr
+0158  3E 2D                 MVI A, '-'       ; Print another hyphen
+015A  CD 8301               CALL PrintChr
+015D  3E 3E                 MVI A, '>'       ; Print the 'greater-than' symbol (arrow tip)
+015F  CD 8301               CALL PrintChr
+0162  3E 20                 MVI A, ' '       ; Print a trailing space
+0164  CD 8301               CALL PrintChr
+0167  C9                    RET
+
+                        ;--------------------------------------------------------------------
+                        ; PrintHex: Prints the value in A as a two-digit hexadecimal number.
+                        ; It uses the PSW to save/restore registers.
+                        ;--------------------------------------------------------------------
+0168                    PrintHex:
+0168  F5                        PUSH PSW                ; Save A and flags
+0169  0F                        RRC                     ; Rotate right: shift high nibble into low bits
+016A  0F                        RRC
+016B  0F                        RRC
+016C  0F                        RRC                     ; Now, the high nibble is in the low 4 bits
+016D  CD 7501                   CALL PrintNib           ; Print high nibble (as a hex digit)
+0170  F1                        POP PSW                 ; Restore original A (with flags intact)
+0171  CD 7501                   CALL PrintNib           ; Print low nibble (by masking A)
+0174  C9                        RET
+
+                        ;--------------------------------------------------------------------
+                        ; PrintNib: Prints the lower 4 bits of A as a hexadecimal digit.
+                        ;--------------------------------------------------------------------
+0175                    PrintNib:
+0175  E6 0F                     ANI 0FH                 ; Mask off upper 4 bits
+0177  FE 0A                     CPI 10                  ; Compare to 10
+0179  FA 8101                   JM  PrintDig            ; If less than 10, jump to PrintDig
+017C  C6 37                     ADI 'A' - 10            ; Otherwise, convert nibble 10-15 to 'A'-'F'
+017E  C3 8301                   JMP PrintChr            ; Jump to print the character
+0181                    PrintDig:
+0181  C6 30                     ADI '0'                 ; Convert nibble (0-9) to ASCII ('0'-'9')
+0183                    PrintChr:
+0183  5F                        MOV E, A                ; Move the character from A to E
+0184  0E 02                     MVI C, 2                ; BDOS function 2: Print character
+0186  CD 0500                   CALL 5                  ; Call BDOS
+0189  C9                        RET
+
+                        ;--------------------------------------------------------------------
+                        ; PrintNL: Prints a Carriage Return and Line Feed.
+                        ;--------------------------------------------------------------------
+018A                    PrintNL:
+018A  3E 0D                     MVI A, 0DH              ; Carriage Return
+018C  CD 8301                   CALL PrintChr
+018F  3E 0A                     MVI A, 0AH              ; Line Feed
+0191  CD 8301                   CALL PrintChr
+0194  C9                        RET
+
+                        ;--------------------------------------------------------------------
+                        ; PrintFlg: Prints the current flag settings as "CY=?" and "AC=?".
+                        ;
+                        ; This routine extracts the flags from the PSW that was loaded
+                        ; via a previous PUSH PSW / POP B sequence.
+                        ;--------------------------------------------------------------------
+0195                    PrintFlg:
+                                ; Save the PSW (which holds A and flags) twice
+0195  F5                        PUSH PSW
+0196  F5                        PUSH PSW
+
+                                ; Print "CY="
+0197  3E 43                     MVI A, 'C'
+0199  CD 8301                   CALL PrintChr
+019C  3E 59                     MVI A, 'Y'
+019E  CD 8301                   CALL PrintChr
+01A1  3E 3D                     MVI A, '='
+01A3  CD 8301                   CALL PrintChr
+
+                                ; Pop one copy of PSW into B; now register C holds the flags byte.
+01A6  C1                        POP B
+01A7  79                        MOV A, C              ; A now contains the flags byte
+01A8  E6 01                     ANI 01H               ; Isolate bit 0 (CY flag)
+01AA  F6 30                     ORI 30H               ; Convert 0 or 1 to ASCII '0' or '1'
+01AC  CD 8301                   CALL PrintChr
+
+01AF  3E 20                     MVI A, ' '           ; Print a space
+01B1  CD 8301                   CALL PrintChr
+                                ; Print "AC="
+01B4  3E 41                     MVI A, 'A'
+01B6  CD 8301                   CALL PrintChr
+01B9  3E 43                     MVI A, 'C'
+01BB  CD 8301                   CALL PrintChr
+01BE  3E 3D                     MVI A, '='
+01C0  CD 8301                   CALL PrintChr
+
+                                ; Pop the second copy of PSW into B to get the original flags again.
+01C3  C1                        POP B
+01C4  79                        MOV A, C              ; A now contains the flags byte again
+                                ; To extract the AC flag (bit 4), shift it right 4 times.
+01C5  0F                        RRC                   ; Rotate right, shifting bit 0 into CY; do this 4 times.
+01C6  0F                        RRC
+01C7  0F                        RRC
+01C8  0F                        RRC
+01C9  E6 01                     ANI 01H               ; Isolate the resulting bit (original bit 4)
+01CB  F6 30                     ORI 30H               ; Convert to ASCII '0' or '1'
+01CD  CD 8301                   CALL PrintChr
+
+01D0  3E 20                     MVI A, ' '           ; Print a trailing space
+01D2  CD 8301                   CALL PrintChr
+
+01D5  C9                        RET
+
+
+                        ;---------------------------
+                        ; Data Section
+                        ;---------------------------
+01D6  00                count:  DB 00H            ; 8-bit counter variable
+
+COUNT              01D6    LOOP               0108    PRINTARW           014E
+PRINTCHR           0183    PRINTDIG           0181    PRINTFLG           0195
+PRINTHEX           0168    PRINTNIB           0175    PRINTNL            018A
+PROCESS            0129    START              0100
